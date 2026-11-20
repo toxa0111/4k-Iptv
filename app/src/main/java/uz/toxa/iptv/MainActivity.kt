@@ -208,8 +208,9 @@ private fun IptvApp() {
                                     parseM3u(body)
                                 }
                                 val result = if (parsed.isNotEmpty()) parsed else listOf(Channel("To‘g‘ridan-to‘g‘ri stream", url))
-                                channels.removeAll { it.group != "Sinov" }
-                                channels.addAll(result)
+                                val merged = (channels.toList() + result).distinctBy { it.url }
+                                channels.clear()
+                                channels.addAll(merged)
                                 category = "All"
                                 onlyFavorites = false
                                 message = result.size.toString() + " ta kanal/manba qo‘shildi."
