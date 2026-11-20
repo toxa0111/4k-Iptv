@@ -1,6 +1,7 @@
 package uz.toxa.iptv
 
 import android.net.Uri
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -81,7 +82,21 @@ private fun IptvApp() {
                     Spacer(Modifier.weight(1f))
                     Text("PHONE • ANDROID TV", color = Color.LightGray, fontSize = 10.sp)
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
+                Text("Rasmiy futbol va sport efirlari", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://uzvision.tv/en/channel/sport_uz"))
+                        context.startActivity(intent)
+                    }) { Text("Sport UZ • Jonli") }
+                    OutlinedButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.fifa.com/fifaplus"))
+                        context.startActivity(intent)
+                    }) { Text("FIFA+") }
+                }
+                Text("Tanlangan musobaqalar bepul. Barcha liga va o‘yinlar bepul bo‘lmasligi mumkin.", color = Color.Gray, fontSize = 10.sp)
+                Spacer(Modifier.height(8.dp))
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     Column(Modifier.weight(1.15f)) {
                         Text("Jonli efir", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -151,7 +166,7 @@ private fun IptvApp() {
                         }
                     }
                 }
-                Text("Haqiqiy 4K faqat manba 2160p uzatsa ishlaydi. Faqat qonuniy ruxsatli streamlardan foydalaning.", color = Color.Gray, fontSize = 10.sp)
+                Text("Rasmiy Sport UZ va FIFA+ sahifalari tashqi ilova/brauzerda ochiladi. Haqiqiy 4K faqat manba 2160p uzatsa ishlaydi.", color = Color.Gray, fontSize = 10.sp)
             }
         }
     }
