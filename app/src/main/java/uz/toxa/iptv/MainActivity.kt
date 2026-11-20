@@ -146,7 +146,7 @@ private fun IptvApp() {
                             Column(Modifier.weight(1.15f)) {
                                 Text("Video pleer", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.height(8.dp))
-                                PlayerPanel(player, selected, false)
+                                PlayerPanel(player, selected, false, Modifier.weight(1f))
                                 Spacer(Modifier.height(6.dp))
                                 Text((selected?.name ?: "Kanal tanlanmagan") + " • " + message, color = Color.LightGray, fontSize = 12.sp, maxLines = 2)
                                 Spacer(Modifier.height(8.dp))
@@ -229,10 +229,10 @@ private fun IptvApp() {
 }
 
 @Composable
-private fun PlayerPanel(player: ExoPlayer, selected: Channel?, compact: Boolean) {
+private fun PlayerPanel(player: ExoPlayer, selected: Channel?, compact: Boolean, modifier: Modifier = Modifier) {
     Box(
-        Modifier.fillMaxWidth()
-            .then(if (compact) Modifier.aspectRatio(16f / 9f) else Modifier.weight(1f))
+        modifier.fillMaxWidth()
+            .then(if (compact) Modifier.aspectRatio(16f / 9f) else Modifier.heightIn(min = 220.dp))
             .background(Color.Black, RoundedCornerShape(12.dp))
     ) {
         if (selected != null) {
