@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,281 +20,209 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.net.URL
 
-private data class Channel(val name: String, val url: String, val group: String = "Imported")
-private val demoChannels = listOf(
-    Channel("4K sinov videosi • Akamai DASH", "https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd", "Sinov"),
-    Channel("HLS sinov videosi • Mux 1080p", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "Sinov")
+private data class Sport(val name: String, val emoji: String, val providers: List<Pair<String, String>>)
+private val sports = listOf(
+    Sport("Futbol", "⚽", listOf("ZO‘R TV" to "https://zortv.uz/", "Setanta Sports" to "https://setantasports.com/", "FIFA+" to "https://www.plus.fifa.com/")),
+    Sport("Basketbol", "🏀", listOf("NBA" to "https://www.nba.com/watch", "FIBA" to "https://www.fiba.basketball/")),
+    Sport("Tennis", "🎾", listOf("Tennis TV" to "https://www.tennistv.com/", "WTA" to "https://www.wtatennis.com/")),
+    Sport("Boks", "🥊", listOf("DAZN" to "https://www.dazn.com/", "World Boxing" to "https://worldboxing.org/")),
+    Sport("MMA", "🥋", listOf("UFC" to "https://www.ufc.com/watch", "UFC Fight Pass" to "https://www.ufcfightpass.com/")),
+    Sport("Motorsport", "🏎️", listOf("F1 TV" to "https://www.formula1.com/en/subscribe-to-f1-tv", "MotoGP" to "https://www.motogp.com/")),
+    Sport("Voleybol", "🏐", listOf("Volleyball World" to "https://www.volleyballworld.com/")),
+    Sport("Xokkey", "🏒", listOf("NHL" to "https://www.nhl.com/subscribe"))
 )
+
+private val bg = Color(0xFF080C16)
+private val panel = Color(0xFF121A2A)
+private val accent = Color(0xFF36D6B0)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.rgb(8, 12, 22)
         window.navigationBarColor = android.graphics.Color.rgb(8, 12, 22)
-        setContent { IptvApp() }
+        setContent { SportsApp() }
     }
 }
 
 @Composable
-private fun IptvApp() {
+private fun SportsApp() {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val channels = remember { mutableStateListOf<Channel>().apply { addAll(demoChannels) } }
-    val favorites = remember { mutableStateListOf<String>() }
-    var selected by remember { mutableStateOf<Channel?>(null) }
-    var query by remember { mutableStateOf("") }
-    var playlistUrl by remember { mutableStateOf("") }
-    var showImport by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("Sinov videolari tayyor. Kanalni tanlang.") }
-    var category by remember { mutableStateOf("All") }
-    var onlyFavorites by remember { mutableStateOf(false) }
-    var loading by remember { mutableStateOf(false) }
-
-    val player = remember {
-        ExoPlayer.Builder(context).build().apply {
-            playWhenReady = false
-            addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_BUFFERING) message = "Video yuklanmoqda…"
-                    if (state == Player.STATE_READY) message = "Ijro qilinmoqda"
-                    if (state == Player.STATE_ENDED) message = "Video tugadi"
-                }
-                override fun onPlayerError(error: PlaybackException) {
-                    message = "Ijro xatosi: " + error.errorCodeName + ". Manbani tekshiring."
-                }
-            })
-        }
-    }
-    DisposableEffect(Unit) { onDispose { player.release() } }
-
-    val groups = listOf("All") + channels.map { it.group }.distinct()
-    val visible = channels.filter {
-        (category == "All" || it.group == category) &&
-            (!onlyFavorites || favorites.contains(it.url)) &&
-            (query.isBlank() || it.name.contains(query, true))
-    }
-    fun play(channel: Channel) {
-        selected = channel
-        message = "Ulanmoqda…"
-        player.setMediaItem(MediaItem.fromUri(Uri.parse(channel.url)))
-        player.prepare()
-        player.play()
+    var selectedSport by remember { mutableStateOf("Barchasi") }
+    var selectedSection by remember { mutableStateOf("Jonli") }
+    var selectedMatch by remember { mutableStateOf<String?>(null) }
+    var search by remember { mutableStateOf("") }
+    val filteredSports = sports.filter {
+        (selectedSport == "Barchasi" || it.name == selectedSport) &&
+            (search.isBlank() || it.name.contains(search, true))
     }
 
-    MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF36D6B0), background = Color(0xFF080C16), surface = Color(0xFF121A2A))) {
-        Surface(Modifier.fillMaxSize(), color = Color(0xFF080C16)) {
+    fun openOfficial(url: String) {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
+
+    MaterialTheme(colorScheme = darkColorScheme(primary = accent, background = bg, surface = panel)) {
+        Surface(Modifier.fillMaxSize(), color = bg) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
-                val compact = maxWidth < 600.dp
-                Column(Modifier.fillMaxSize().padding(if (compact) 12.dp else 16.dp)) {
+                val compact = maxWidth < 650.dp
+                Column(Modifier.fillMaxSize().padding(if (compact) 12.dp else 22.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("4K", color = Color(0xFF36D6B0), fontSize = 29.sp, fontWeight = FontWeight.Black)
-                        Spacer(Modifier.width(7.dp))
-                        Text("IPTV", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text("TOXA", color = accent, fontSize = 27.sp, fontWeight = FontWeight.Black)
+                        Spacer(Modifier.width(8.dp))
+                        Text("SPORTS", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        Text(if (compact) "ANDROID" else "PHONE • ANDROID TV", color = Color.LightGray, fontSize = 10.sp)
+                        Text("LIVE • HD • 4K", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://uzvision.tv/en/channel/sport_uz"))) }
-                                .onFailure { message = "Brauzer ochilmadi" }
-                        }, modifier = Modifier.weight(1f)) { Text("Sport UZ") }
-                        OutlinedButton(onClick = {
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.dazn.com/fifaplus"))) }
-                                .onFailure { message = "Brauzer ochilmadi" }
-                        }, modifier = Modifier.weight(1f)) { Text("FIFA+ / DAZN") }
+                    Text("Barcha sport musobaqalari — bitta platformada", color = Color.LightGray, fontSize = 12.sp)
+                    Spacer(Modifier.height(14.dp))
+
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf("Jonli", "Bugun", "Yaqin", "Yakunlangan")) { section ->
+                            FilterChip(
+                                selected = selectedSection == section,
+                                onClick = { selectedSection = section; selectedMatch = null },
+                                label = { Text(section) }
+                            )
+                        }
                     }
-                    Text("Rasmiy xizmat sahifalari ochiladi. Barcha futbol o‘yinlari bepul emas.", color = Color.Gray, fontSize = 10.sp)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = search, onValueChange = { search = it },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        label = { Text("Sport turini qidirish") }
+                    )
+                    Spacer(Modifier.height(10.dp))
 
                     if (compact) {
-                        Column(Modifier.fillMaxSize()) {
-                            PlayerPanel(player, selected, true)
-                            Spacer(Modifier.height(5.dp))
-                            Text((selected?.name ?: "Kanal tanlanmagan") + " • " + message, color = Color.LightGray, fontSize = 11.sp, maxLines = 2)
-                            Spacer(Modifier.height(6.dp))
-                            Controls(query, { query = it }, { showImport = true }, onlyFavorites, { onlyFavorites = !onlyFavorites }, loading)
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                                items(groups) { g -> FilterChip(selected = category == g, onClick = { category = g }, label = { Text(g) }) }
-                            }
-                            Text("Kanallar (" + visible.size + ")", color = Color.White, fontWeight = FontWeight.Bold)
-                            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                items(visible, key = { it.url }) { c ->
-                                    ChannelRow(c, selected == c, favorites.contains(c.url), { play(c) }) {
-                                        if (favorites.contains(c.url)) favorites.remove(c.url) else favorites.add(c.url)
-                                    }
+                        SportsPicker(selectedSport) { selectedSport = it; selectedMatch = null }
+                        Spacer(Modifier.height(10.dp))
+                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            item { EventStatusCard(selectedSection) }
+                            if (selectedMatch != null) {
+                                item { MatchDetail(selectedMatch!!, filteredSports.firstOrNull(), ::openOfficial) }
+                            } else {
+                                items(filteredSports) { sport ->
+                                    SportCard(sport, ::openOfficial) { selectedMatch = sport.name }
                                 }
                             }
                         }
                     } else {
-                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                            Column(Modifier.weight(1.15f)) {
-                                Text("Video pleer", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Column(Modifier.weight(0.34f)) {
+                                Text("SPORT TURLARI", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.height(8.dp))
-                                PlayerPanel(player, selected, false, Modifier.weight(1f))
-                                Spacer(Modifier.height(6.dp))
-                                Text((selected?.name ?: "Kanal tanlanmagan") + " • " + message, color = Color.LightGray, fontSize = 12.sp, maxLines = 2)
-                                Spacer(Modifier.height(8.dp))
-                                Controls(query, { query = it }, { showImport = true }, onlyFavorites, { onlyFavorites = !onlyFavorites }, loading)
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(top = 5.dp)) {
-                                    items(groups) { g -> FilterChip(selected = category == g, onClick = { category = g }, label = { Text(g, maxLines = 1) }) }
-                                }
+                                SportsPicker(selectedSport) { selectedSport = it; selectedMatch = null }
                             }
-                            Column(Modifier.weight(0.85f)) {
-                                Text("Kanallar (" + visible.size + ")", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                                Spacer(Modifier.height(8.dp))
-                                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    items(visible, key = { it.url }) { c ->
-                                        ChannelRow(c, selected == c, favorites.contains(c.url), { play(c) }) {
-                                            if (favorites.contains(c.url)) favorites.remove(c.url) else favorites.add(c.url)
+                            Column(Modifier.weight(0.66f)) {
+                                EventStatusCard(selectedSection)
+                                Spacer(Modifier.height(10.dp))
+                                if (selectedMatch != null) {
+                                    MatchDetail(selectedMatch!!, sports.firstOrNull { it.name == selectedMatch }, ::openOfficial)
+                                } else {
+                                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        items(filteredSports) { sport ->
+                                            SportCard(sport, ::openOfficial) { selectedMatch = sport.name }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    Text("Sinov videolari jonli TV emas. Haqiqiy 4K uchun manba 2160p bo‘lishi kerak.", color = Color.Gray, fontSize = 9.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Eslatma: jonli hisoblar va translyatsiyalar faqat rasmiy ma’lumot/manbalar ulangach ko‘rsatiladi.",
+                        color = Color.Gray, fontSize = 10.sp
+                    )
                 }
             }
         }
     }
+}
 
-    if (showImport) {
-        AlertDialog(
-            onDismissRequest = { if (!loading) showImport = false },
-            title = { Text("M3U yoki video manzilini qo‘shish") },
-            text = {
-                Column {
-                    Text("M3U playlist yoki bevosita .m3u8 / .mpd manzilini kiriting.")
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(value = playlistUrl, onValueChange = { playlistUrl = it }, label = { Text("https://...") },
-                        singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
-                    if (loading) {
-                        Spacer(Modifier.height(8.dp))
-                        LinearProgressIndicator(Modifier.fillMaxWidth())
-                    }
-                }
+@Composable
+private fun SportsPicker(selected: String, onSelect: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        val all = listOf("Barchasi" to "🏆") + sports.map { it.name to it.emoji }
+        all.forEach { (name, emoji) ->
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(if (selected == name) Color(0xFF20384A) else panel, RoundedCornerShape(9.dp))
+                    .clickable { onSelect(name) }.focusable().padding(11.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(emoji, fontSize = 18.sp)
+                Spacer(Modifier.width(10.dp))
+                Text(name, color = if (selected == name) accent else Color.White, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventStatusCard(section: String) {
+    Column(
+        Modifier.fillMaxWidth().background(panel, RoundedCornerShape(13.dp)).padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(section.uppercase(), color = accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Spacer(Modifier.weight(1f))
+            Text("SPORTS CENTER", color = Color.Gray, fontSize = 9.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            when (section) {
+                "Jonli" -> "Hozircha jonli uchrashuvlar lentasi ulanmagan"
+                "Bugun" -> "Bugungi musobaqalar taqvimi ulanmoqda"
+                "Yaqin" -> "Kelgusi uchrashuvlar taqvimi ulanmoqda"
+                else -> "Yakunlangan o‘yinlar natijalari ulanmoqda"
             },
-            confirmButton = {
-                TextButton(enabled = !loading, onClick = {
-                    val url = playlistUrl.trim()
-                    if (!url.startsWith("https://") && !url.startsWith("http://")) {
-                        message = "To‘g‘ri HTTP yoki HTTPS manzil kiriting."
-                    } else {
-                        scope.launch {
-                            loading = true
-                            try {
-                                val parsed = withContext(Dispatchers.IO) {
-                                    val connection = URL(url).openConnection().apply {
-                                        connectTimeout = 12000
-                                        readTimeout = 12000
-                                    }
-                                    val body = connection.getInputStream().bufferedReader().use { it.readText() }
-                                    parseM3u(body)
-                                }
-                                val result = if (parsed.isNotEmpty()) parsed else listOf(Channel("To‘g‘ridan-to‘g‘ri stream", url))
-                                val merged = (channels.toList() + result).distinctBy { it.url }
-                                channels.clear()
-                                channels.addAll(merged)
-                                category = "All"
-                                onlyFavorites = false
-                                message = result.size.toString() + " ta kanal/manba qo‘shildi."
-                                showImport = false
-                            } catch (e: Exception) {
-                                message = "Manzil yuklanmadi: " + (e.message ?: "tarmoq xatosi")
-                            } finally {
-                                loading = false
-                            }
-                        }
-                    }
-                }) { Text("Yuklash") }
-            },
-            dismissButton = { TextButton(onClick = { if (!loading) showImport = false }) { Text("Bekor") } }
+            color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Soxta o‘yinlar yoki hisoblar ko‘rsatilmaydi. Rasmiy sport taqvimi va natijalar API manbasi ulanmaguncha ro‘yxat bo‘sh turadi.",
+            color = Color.LightGray, fontSize = 12.sp, lineHeight = 17.sp
         )
     }
 }
 
 @Composable
-private fun PlayerPanel(player: ExoPlayer, selected: Channel?, compact: Boolean, modifier: Modifier = Modifier) {
-    Box(
-        modifier.fillMaxWidth()
-            .then(if (compact) Modifier.aspectRatio(16f / 9f) else Modifier.heightIn(min = 220.dp))
-            .background(Color.Black, RoundedCornerShape(12.dp))
-    ) {
-        if (selected != null) {
-            AndroidView(modifier = Modifier.fillMaxSize(), factory = { ctx ->
-                PlayerView(ctx).apply {
-                    this.player = player
-                    useController = true
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+private fun SportCard(sport: Sport, openOfficial: (String) -> Unit, onSelect: () -> Unit) {
+    Column(Modifier.fillMaxWidth().background(panel, RoundedCornerShape(12.dp)).padding(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onSelect)) {
+            Text(sport.emoji, fontSize = 25.sp)
+            Spacer(Modifier.width(10.dp))
+            Text(sport.name, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            Text("Manbalar  ›", color = accent, fontSize = 11.sp)
+        }
+        Spacer(Modifier.height(9.dp))
+        Text("Rasmiy translyatsiya platformalari", color = Color.Gray, fontSize = 11.sp)
+        Spacer(Modifier.height(6.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            items(sport.providers) { (name, url) ->
+                OutlinedButton(onClick = { openOfficial(url) }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)) {
+                    Text(name, fontSize = 11.sp, maxLines = 1)
                 }
-            }, update = { it.player = player })
-        } else {
-            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("▶", color = Color(0xFF36D6B0), fontSize = 38.sp)
-                Text("Sinov kanalini tanlang", color = Color.White, fontSize = 13.sp)
             }
         }
     }
 }
 
 @Composable
-private fun Controls(query: String, onQuery: (String) -> Unit, onImport: () -> Unit,
-                     favorites: Boolean, onFavorites: () -> Unit, loading: Boolean) {
-    Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-        Button(onClick = onImport, enabled = !loading, modifier = Modifier.weight(1f)) { Text("M3U qo‘shish", maxLines = 1) }
-        OutlinedButton(onClick = onFavorites, modifier = Modifier.weight(1f)) { Text(if (favorites) "Barchasi" else "★ Sevimli", maxLines = 1) }
-    }
-    Spacer(Modifier.height(5.dp))
-    OutlinedTextField(value = query, onValueChange = onQuery, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Kanal qidirish") })
-}
-
-@Composable
-private fun ChannelRow(channel: Channel, selected: Boolean, favorite: Boolean, onPlay: () -> Unit, onFavorite: () -> Unit) {
-    Row(Modifier.fillMaxWidth()
-        .background(if (selected) Color(0xFF20384A) else Color(0xFF121A2A), RoundedCornerShape(9.dp))
-        .clickable(onClick = onPlay).focusable().padding(horizontal = 10.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(channel.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-            Text(channel.group, color = Color.Gray, fontSize = 10.sp)
-        }
-        Text(if (favorite) "★" else "☆", color = Color(0xFFFFD166), fontSize = 21.sp,
-            modifier = Modifier.clickable(onClick = onFavorite).padding(horizontal = 5.dp))
-    }
-}
-
-private fun parseM3u(content: String): List<Channel> {
-    val result = mutableListOf<Channel>()
-    var name = "Nomsiz kanal"
-    var group = "Imported"
-    content.lineSequence().forEach { raw ->
-        val line = raw.trim()
-        when {
-            line.startsWith("#EXTINF", true) -> {
-                name = line.substringAfterLast(",").trim().ifBlank { "Nomsiz kanal" }
-                group = Regex("group-title=\"([^\"]*)\"").find(line)?.groupValues?.getOrNull(1) ?: "Imported"
-            }
-            line.isNotBlank() && !line.startsWith("#") &&
-                (line.startsWith("http://") || line.startsWith("https://")) -> {
-                result.add(Channel(name, line, group))
-                name = "Nomsiz kanal"
-            }
+private fun MatchDetail(name: String, sport: Sport?, openOfficial: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().background(panel, RoundedCornerShape(13.dp)).padding(16.dp)) {
+        Text("$name — translyatsiya", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Hozircha tasdiqlangan jonli o‘yin yoki litsenziyalangan video manbasi mavjud emas.", color = Color.LightGray, fontSize = 13.sp)
+        Spacer(Modifier.height(12.dp))
+        Text("Rasmiy tomosha qilish xizmatlari", color = accent, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+        (sport?.providers ?: emptyList()).forEach { (name, url) ->
+            TextButton(onClick = { openOfficial(url) }) { Text("▶  $name", color = Color.White) }
         }
     }
-    return result
 }
