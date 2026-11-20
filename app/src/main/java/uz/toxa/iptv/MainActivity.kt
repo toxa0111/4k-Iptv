@@ -1,6 +1,5 @@
 package uz.toxa.iptv
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,7 +9,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -22,17 +20,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 
-private data class Sport(val name: String, val emoji: String, val providers: List<Pair<String, String>>)
+private data class Sport(val name: String, val emoji: String, val leagues: List<String>)
 private val sports = listOf(
-    Sport("Futbol", "⚽", listOf("ZO‘R TV" to "https://zortv.uz/", "Setanta Sports" to "https://setantasports.com/", "FIFA+" to "https://www.plus.fifa.com/")),
-    Sport("Basketbol", "🏀", listOf("NBA" to "https://www.nba.com/watch", "FIBA" to "https://www.fiba.basketball/")),
-    Sport("Tennis", "🎾", listOf("Tennis TV" to "https://www.tennistv.com/", "WTA" to "https://www.wtatennis.com/")),
-    Sport("Boks", "🥊", listOf("DAZN" to "https://www.dazn.com/", "World Boxing" to "https://worldboxing.org/")),
-    Sport("MMA", "🥋", listOf("UFC" to "https://www.ufc.com/watch", "UFC Fight Pass" to "https://www.ufcfightpass.com/")),
-    Sport("Motorsport", "🏎️", listOf("F1 TV" to "https://www.formula1.com/en/subscribe-to-f1-tv", "MotoGP" to "https://www.motogp.com/")),
-    Sport("Voleybol", "🏐", listOf("Volleyball World" to "https://www.volleyballworld.com/")),
-    Sport("Xokkey", "🏒", listOf("NHL" to "https://www.nhl.com/subscribe"))
+    Sport("Futbol", "⚽", listOf("UEFA Champions League", "Premier League", "La Liga", "Serie A", "Bundesliga", "O‘zbekiston Superligasi")),
+    Sport("Basketbol", "🏀", listOf("NBA", "EuroLeague", "FIBA")),
+    Sport("Tennis", "🎾", listOf("ATP Tour", "WTA Tour", "Grand Slam")),
+    Sport("Boks", "🥊", listOf("Professional boks", "World Boxing")),
+    Sport("MMA", "🥋", listOf("UFC", "PFL", "ONE Championship")),
+    Sport("Motorsport", "🏎️", listOf("Formula 1", "MotoGP", "WRC")),
+    Sport("Voleybol", "🏐", listOf("Volleyball Nations League", "CEV")),
+    Sport("Xokkey", "🏒", listOf("NHL", "IIHF"))
 )
 
 private val bg = Color(0xFF080C16)
@@ -50,19 +54,15 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun SportsApp() {
-    val context = LocalContext.current
-    var selectedSport by remember { mutableStateOf("Barchasi") }
+    var selectedSport by remember { mutableStateOf("Futbol") }
     var selectedSection by remember { mutableStateOf("Jonli") }
-    var selectedMatch by remember { mutableStateOf<String?>(null) }
     var search by remember { mutableStateOf("") }
-    val filteredSports = sports.filter {
-        (selectedSport == "Barchasi" || it.name == selectedSport) &&
-            (search.isBlank() || it.name.contains(search, true))
-    }
+    var streamUrl by remember { mutableStateOf("") }
+    var playRequest by remember { mutableIntStateOf(0) }
+    var playerMessage by remember { mutableStateOf("Translyatsiya manbasi tanlanmagan") }
 
-    fun openOfficial(url: String) {
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-    }
+    val selected = sports.firstOrNull { it.name == selectedSport } ?: sports.first()
+    val filtered = sports.filter { search.isBlank() || it.name.contains(search, true) }
 
     MaterialTheme(colorScheme = darkColorScheme(primary = accent, background = bg, surface = panel)) {
         Surface(Modifier.fillMaxSize(), color = bg) {
@@ -74,21 +74,16 @@ private fun SportsApp() {
                         Spacer(Modifier.width(8.dp))
                         Text("SPORTS", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        Text("LIVE • HD • 4K", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("ICHKI LIVE PLAYER", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
-                    Text("Barcha sport musobaqalari — bitta platformada", color = Color.LightGray, fontSize = 12.sp)
-                    Spacer(Modifier.height(14.dp))
-
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(listOf("Jonli", "Bugun", "Yaqin", "Yakunlangan")) { section ->
-                            FilterChip(
-                                selected = selectedSection == section,
-                                onClick = { selectedSection = section; selectedMatch = null },
-                                label = { Text(section) }
-                            )
+                    Text("Sportni tanlang — translyatsiya shu ilovaning ichida ochiladi", color = Color.LightGray, fontSize = 12.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        listOf("Jonli", "Bugun", "Yaqin", "Yakunlangan").forEach { section ->
+                            FilterChip(selected = selectedSection == section, onClick = { selectedSection = section }, label = { Text(section, fontSize = 11.sp) })
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(9.dp))
                     OutlinedTextField(
                         value = search, onValueChange = { search = it },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
@@ -97,45 +92,48 @@ private fun SportsApp() {
                     Spacer(Modifier.height(10.dp))
 
                     if (compact) {
-                        SportsPicker(selectedSport) { selectedSport = it; selectedMatch = null }
-                        Spacer(Modifier.height(10.dp))
-                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            item { EventStatusCard(selectedSection) }
-                            if (selectedMatch != null) {
-                                item { MatchDetail(selectedMatch!!, filteredSports.firstOrNull(), ::openOfficial) }
-                            } else {
-                                items(filteredSports) { sport ->
-                                    SportCard(sport, ::openOfficial) { selectedMatch = sport.name }
-                                }
-                            }
-                        }
-                    } else {
-                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Column(Modifier.weight(0.34f)) {
-                                Text("SPORT TURLARI", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(8.dp))
-                                SportsPicker(selectedSport) { selectedSport = it; selectedMatch = null }
-                            }
-                            Column(Modifier.weight(0.66f)) {
-                                EventStatusCard(selectedSection)
-                                Spacer(Modifier.height(10.dp))
-                                if (selectedMatch != null) {
-                                    MatchDetail(selectedMatch!!, sports.firstOrNull { it.name == selectedMatch }, ::openOfficial)
-                                } else {
-                                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        items(filteredSports) { sport ->
-                                            SportCard(sport, ::openOfficial) { selectedMatch = sport.name }
-                                        }
+                        Column(Modifier.weight(1f)) {
+                            LazyColumn(modifier = Modifier.weight(0.43f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(filtered) { sport ->
+                                    SportChoice(sport, selectedSport == sport.name) {
+                                        selectedSport = sport.name
+                                        streamUrl = ""
+                                        playerMessage = "Translyatsiya manbasi tanlanmagan"
                                     }
                                 }
                             }
+                            Spacer(Modifier.height(8.dp))
+                            SportDetail(selected, selectedSection, streamUrl, { streamUrl = it }, {
+                                if (streamUrl.startsWith("https://") || streamUrl.startsWith("http://")) {
+                                    playRequest++
+                                    playerMessage = "Manba pleerga yuklanmoqda…"
+                                } else playerMessage = "HLS (.m3u8) yoki DASH (.mpd) manzilini kiriting"
+                            }, playRequest, playerMessage, { playerMessage = it })
+                        }
+                    } else {
+                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            LazyColumn(Modifier.weight(0.30f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(filtered) { sport ->
+                                    SportChoice(sport, selectedSport == sport.name) {
+                                        selectedSport = sport.name
+                                        streamUrl = ""
+                                        playerMessage = "Translyatsiya manbasi tanlanmagan"
+                                    }
+                                }
+                            }
+                            SportDetail(
+                                selected, selectedSection, streamUrl, { streamUrl = it },
+                                {
+                                    if (streamUrl.startsWith("https://") || streamUrl.startsWith("http://")) {
+                                        playRequest++
+                                        playerMessage = "Manba pleerga yuklanmoqda…"
+                                    } else playerMessage = "HLS (.m3u8) yoki DASH (.mpd) manzilini kiriting"
+                                },
+                                playRequest, playerMessage, { playerMessage = it }, Modifier.weight(0.70f)
+                            )
                         }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Eslatma: jonli hisoblar va translyatsiyalar faqat rasmiy ma’lumot/manbalar ulangach ko‘rsatiladi.",
-                        color = Color.Gray, fontSize = 10.sp
-                    )
+                    Text("Eslatma: haqiqiy musobaqa translyatsiyasi uchun huquq egasi ruxsat bergan video manba kerak.", color = Color.Gray, fontSize = 10.sp)
                 }
             }
         }
@@ -143,86 +141,98 @@ private fun SportsApp() {
 }
 
 @Composable
-private fun SportsPicker(selected: String, onSelect: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        val all = listOf("Barchasi" to "🏆") + sports.map { it.name to it.emoji }
-        all.forEach { (name, emoji) ->
-            Row(
-                Modifier.fillMaxWidth()
-                    .background(if (selected == name) Color(0xFF20384A) else panel, RoundedCornerShape(9.dp))
-                    .clickable { onSelect(name) }.focusable().padding(11.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(emoji, fontSize = 18.sp)
-                Spacer(Modifier.width(10.dp))
-                Text(name, color = if (selected == name) accent else Color.White, fontWeight = FontWeight.SemiBold)
-            }
-        }
+private fun SportChoice(sport: Sport, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(if (selected) Color(0xFF20384A) else panel, RoundedCornerShape(9.dp))
+            .clickable(onClick = onClick).focusable().padding(11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(sport.emoji, fontSize = 19.sp)
+        Spacer(Modifier.width(9.dp))
+        Text(sport.name, color = if (selected) accent else Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
     }
 }
 
 @Composable
-private fun EventStatusCard(section: String) {
-    Column(
-        Modifier.fillMaxWidth().background(panel, RoundedCornerShape(13.dp)).padding(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(section.uppercase(), color = accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Spacer(Modifier.weight(1f))
-            Text("SPORTS CENTER", color = Color.Gray, fontSize = 9.sp)
-        }
-        Spacer(Modifier.height(12.dp))
+private fun SportDetail(
+    sport: Sport,
+    section: String,
+    streamUrl: String,
+    onUrlChange: (String) -> Unit,
+    onPlay: () -> Unit,
+    playRequest: Int,
+    playerMessage: String,
+    onPlayerMessage: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier.fillMaxWidth().background(panel, RoundedCornerShape(13.dp)).padding(12.dp)) {
+        Text("${sport.emoji}  ${sport.name}", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
         Text(
             when (section) {
-                "Jonli" -> "Hozircha jonli uchrashuvlar lentasi ulanmagan"
-                "Bugun" -> "Bugungi musobaqalar taqvimi ulanmoqda"
-                "Yaqin" -> "Kelgusi uchrashuvlar taqvimi ulanmoqda"
-                else -> "Yakunlangan o‘yinlar natijalari ulanmoqda"
+                "Jonli" -> "Jonli uchrashuvlar"
+                "Bugun" -> "Bugungi uchrashuvlar"
+                "Yaqin" -> "Yaqinlashayotgan uchrashuvlar"
+                else -> "Yakunlangan uchrashuvlar"
             },
-            color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold
+            color = accent, fontWeight = FontWeight.Bold, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(7.dp))
+        Text("Turnirlar", color = Color.LightGray, fontSize = 11.sp)
+        sport.leagues.forEach { league ->
+            Text("•  $league", color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(vertical = 2.dp))
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("TRANSLYATSIYA MANBASI", color = accent, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        OutlinedTextField(
+            value = streamUrl, onValueChange = onUrlChange, modifier = Modifier.fillMaxWidth(),
+            singleLine = true, label = { Text("Ruxsatli HLS (.m3u8) yoki DASH (.mpd) manzili") }
         )
         Spacer(Modifier.height(6.dp))
-        Text(
-            "Soxta o‘yinlar yoki hisoblar ko‘rsatilmaydi. Rasmiy sport taqvimi va natijalar API manbasi ulanmaguncha ro‘yxat bo‘sh turadi.",
-            color = Color.LightGray, fontSize = 12.sp, lineHeight = 17.sp
-        )
+        Button(onClick = onPlay, modifier = Modifier.fillMaxWidth()) {
+            Text("▶  ILOVA ICHIDA TOMOSHA QILISH")
+        }
+        Text(playerMessage, color = Color.LightGray, fontSize = 11.sp)
+        Spacer(Modifier.height(8.dp))
+        InAppPlayer(streamUrl, playRequest, onPlayerMessage)
     }
 }
 
 @Composable
-private fun SportCard(sport: Sport, openOfficial: (String) -> Unit, onSelect: () -> Unit) {
-    Column(Modifier.fillMaxWidth().background(panel, RoundedCornerShape(12.dp)).padding(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onSelect)) {
-            Text(sport.emoji, fontSize = 25.sp)
-            Spacer(Modifier.width(10.dp))
-            Text(sport.name, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.weight(1f))
-            Text("Manbalar  ›", color = accent, fontSize = 11.sp)
-        }
-        Spacer(Modifier.height(9.dp))
-        Text("Rasmiy translyatsiya platformalari", color = Color.Gray, fontSize = 11.sp)
-        Spacer(Modifier.height(6.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            items(sport.providers) { (name, url) ->
-                OutlinedButton(onClick = { openOfficial(url) }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)) {
-                    Text(name, fontSize = 11.sp, maxLines = 1)
-                }
+private fun InAppPlayer(url: String, playRequest: Int, onMessage: (String) -> Unit) {
+    val context = LocalContext.current
+    val player = remember { ExoPlayer.Builder(context).build().apply { playWhenReady = true } }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                onMessage("Ijro xatosi: ${error.errorCodeName}")
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) onMessage("Video tayyor — ijro etilmoqda")
+                if (playbackState == Player.STATE_BUFFERING) onMessage("Video yuklanmoqda…")
             }
         }
-    }
-}
-
-@Composable
-private fun MatchDetail(name: String, sport: Sport?, openOfficial: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().background(panel, RoundedCornerShape(13.dp)).padding(16.dp)) {
-        Text("$name — translyatsiya", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Hozircha tasdiqlangan jonli o‘yin yoki litsenziyalangan video manbasi mavjud emas.", color = Color.LightGray, fontSize = 13.sp)
-        Spacer(Modifier.height(12.dp))
-        Text("Rasmiy tomosha qilish xizmatlari", color = accent, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(6.dp))
-        (sport?.providers ?: emptyList()).forEach { (name, url) ->
-            TextButton(onClick = { openOfficial(url) }) { Text("▶  $name", color = Color.White) }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
         }
     }
+    LaunchedEffect(playRequest) {
+        if (playRequest > 0 && url.isNotBlank()) {
+            player.setMediaItem(MediaItem.fromUri(Uri.parse(url.trim())))
+            player.prepare()
+            player.play()
+        }
+    }
+    AndroidView(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 340.dp).background(Color.Black, RoundedCornerShape(10.dp)),
+        factory = { viewContext ->
+            PlayerView(viewContext).apply {
+                player = this@InAppPlayer.player
+                useController = true
+                setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+            }
+        },
+        update = { it.player = player }
+    )
 }
