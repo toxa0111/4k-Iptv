@@ -106,7 +106,7 @@ private fun IptvApp() {
                                 AndroidView(
                                     modifier = Modifier.fillMaxSize(),
                                     factory = { ctx -> PlayerView(ctx).apply {
-                                        player = player
+                                        this.player = player
                                         useController = true
                                         setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                                     } },
