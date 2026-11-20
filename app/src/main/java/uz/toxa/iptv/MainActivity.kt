@@ -91,9 +91,9 @@ private fun IptvApp() {
                         context.startActivity(intent)
                     }) { Text("Sport UZ • Jonli") }
                     OutlinedButton(onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.fifa.com/fifaplus"))
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.dazn.com/fifaplus"))
                         context.startActivity(intent)
-                    }) { Text("FIFA+") }
+                    }) { Text("FIFA+ / DAZN") }
                 }
                 Text("Tanlangan musobaqalar bepul. Barcha liga va o‘yinlar bepul bo‘lmasligi mumkin.", color = Color.Gray, fontSize = 10.sp)
                 Spacer(Modifier.height(8.dp))
