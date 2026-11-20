@@ -228,7 +228,7 @@ private fun InAppPlayer(url: String, playRequest: Int, onMessage: (String) -> Un
         modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 340.dp).background(Color.Black, RoundedCornerShape(10.dp)),
         factory = { viewContext ->
             PlayerView(viewContext).apply {
-                player = this@InAppPlayer.player
+                this.player = player
                 useController = true
                 setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
             }
